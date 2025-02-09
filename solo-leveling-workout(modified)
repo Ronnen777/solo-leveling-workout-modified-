@@ -1,0 +1,132 @@
+import React, { useState, useEffect } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { motion } from "framer-motion";
+import * as InAppPurchases from 'expo-in-app-purchases';
+
+const PRODUCT_ID = "pay_to_play_upgrade";
+
+const exercises = {
+  "Free to Play": ["Jumping Jacks", "Push-ups", "Squats", "Burpees"],
+  "Pay to Play": ["Deadlifts", "Bench Press", "Squats", "Pull-ups"],
+  "Upper Body": ["Push-ups", "Pull-ups", "Dumbbell Curls"],
+  "Lower Body": ["Squats", "Lunges", "Calf Raises"],
+  "Core": ["Planks", "Sit-ups", "Leg Raises"],
+  "Rest Day": ["Stretching", "Yoga", "Walking"],
+  "Boss Challenge": ["50 Burpees", "100 Push-ups", "5-minute Plank"]
+};
+
+const dietPlans = {
+  "Standard": [
+    { day: "Monday", meals: ["Oats & Banana", "Chicken & Rice", "Salmon & Veggies"] },
+    { day: "Tuesday", meals: ["Eggs & Toast", "Beef & Quinoa", "Tuna Salad"] },
+    { day: "Wednesday", meals: ["Smoothie Bowl", "Grilled Chicken & Sweet Potato", "Vegetable Stir-fry"] }
+  ],
+  "Vegan": [
+    { day: "Monday", meals: ["Oatmeal & Berries", "Quinoa & Chickpeas", "Tofu Stir-fry"] },
+    { day: "Tuesday", meals: ["Green Smoothie", "Lentil Soup", "Grilled Vegetables"] },
+    { day: "Wednesday", meals: ["Avocado Toast", "Black Bean Salad", "Vegan Curry"] }
+  ]
+};
+
+export default function SoloLevelingWorkout() {
+  const [day, setDay] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [goal, setGoal] = useState("Improve endurance");
+  const [mode, setMode] = useState("Free to Play");
+  const [penalty, setPenalty] = useState(0);
+  const [purchased, setPurchased] = useState(false);
+  const [streak, setStreak] = useState(0);
+  const [difficulty, setDifficulty] = useState("Medium");
+  const [dietType, setDietType] = useState("Standard");
+
+  useEffect(() => {
+    setProgress(((day + 1) / 7) * 100);
+    checkPurchaseStatus();
+  }, [day]);
+
+  const handleNextDay = () => {
+    if (mode === "Pay to Play" && progress < 100) {
+      setPenalty((prev) => prev + 1);
+    } else {
+      setStreak((prev) => prev + 1);
+    }
+    setDay((prev) => (prev + 1) % 7);
+  };
+
+  const checkPurchaseStatus = async () => {
+    const { responseCode, results } = await InAppPurchases.getPurchaseHistoryAsync();
+    if (responseCode === InAppPurchases.IAPResponseCode.OK) {
+      const hasPurchased = results.some(purchase => purchase.productId === PRODUCT_ID);
+      setPurchased(hasPurchased);
+      if (hasPurchased) {
+        setMode("Pay to Play");
+      }
+    }
+  };
+
+  const buyPayToPlay = async () => {
+    try {
+      await InAppPurchases.connectAsync();
+      const { responseCode, results } = await InAppPurchases.purchaseItemAsync(PRODUCT_ID);
+      if (responseCode === InAppPurchases.IAPResponseCode.OK) {
+        setPurchased(true);
+        setMode("Pay to Play");
+      }
+    } catch (error) {
+      console.error("Purchase failed: ", error);
+    }
+  };
+
+  return (
+    <div className="p-6 max-w-2xl mx-auto space-y-4">
+      <motion.h1 className="text-2xl font-bold" animate={{ scale: 1.1 }}>
+        Solo Leveling Workout
+      </motion.h1>
+      {!purchased && (
+        <Button onClick={buyPayToPlay} className="bg-green-500 text-white">
+          Unlock Pay-to-Play Mode ($5.99)
+        </Button>
+      )}
+      <Button onClick={() => setMode(mode === "Free to Play" ? "Pay to Play" : "Free to Play")} disabled={!purchased}>
+        Switch to {mode === "Free to Play" ? "Pay to Play" : "Free to Play"}
+      </Button>
+      <Card>
+        <CardContent className="p-4">
+          <h2 className="text-xl font-semibold">Today's Workout ({mode})</h2>
+          <ul className="list-disc ml-5">
+            {(mode === "Free to Play" ? exercises["Free to Play"] : exercises["Pay to Play"]).map((ex, idx) => (
+              <li key={idx}>{ex}</li>
+            ))}
+            {streak > 3 && <li>{exercises["Boss Challenge"][Math.floor(Math.random() * exercises["Boss Challenge"].length)]}</li>}
+          </ul>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="p-4">
+          <h2 className="text-xl font-semibold">Today's Meals</h2>
+          <ul className="list-disc ml-5">
+            {dietPlans[dietType][day % dietPlans[dietType].length].meals.map((meal, idx) => (
+              <li key={idx}>{meal}</li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="p-4">
+          <h2 className="text-xl font-semibold">Weekly Goal</h2>
+          <p>{goal}</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="p-4">
+          <h2 className="text-xl font-semibold">Penalties</h2>
+          <p>Missed workouts: {penalty}</p>
+        </CardContent>
+      </Card>
+      <Progress value={progress} className="h-4 bg-blue-500" />
+      <Button onClick={handleNextDay}>Next Day</Button>
+    </div>
+  );
+}
